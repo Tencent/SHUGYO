@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SHUGYO: On-Policy Reinforcement Learning of Game Agents in a Generative World Model</title>
+  <meta name="description" content="SHUGYO adapts an action-conditioned video world model into an approximate environment for on-policy RL of game agents in Black Myth: Wukong." />
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <h1>SHUGYO</h1>
+      <p class="subtitle">
+        On-Policy Reinforcement Learning of Game Agents in a Generative World Model
+      </p>
+      <div class="authors">
+        <span class="author">WenKang Han<sup>1</sup></span>
+        <span class="author">Hongqiao Lian<sup>1</sup></span>
+        <span class="author">Zipeng Yang<sup>1</sup></span>
+        <span class="author">Danyang Chen<sup>1</sup></span>
+        <span class="author-break" aria-hidden="true"></span>
+        <span class="author">Zixing Guo<sup>1</sup></span>
+        <span class="author">Shaoguo Wen<sup>1</sup></span>
+        <span class="author">Wen Gao<sup>1</sup></span>
+        <span class="author">Junle Wang<sup>1</sup></span>
+      </div>
+      <p class="affiliations"><sup>1</sup>Tencent Turing Lab</p>
+      <nav class="links" aria-label="page sections">
+        <a href="#abstract">Abstract</a>
+        <a href="#overview">Overview</a>
+        <a href="#results">Results</a>
+        <a href="#cases">Simulator Rollouts</a>
+        <a href="#bibtex">BibTeX</a>
+      </nav>
+    </header>
+
+    <section class="stats" aria-label="key results">
+      <div class="stat">
+        <span class="stat-value">58.6% &rarr; 68.6%</span>
+        <span class="stat-label">Real-game success after RL trained only in the simulator</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value"><i>r</i> = 0.88</span>
+        <span class="stat-label">Per-task success correlation, simulator vs. real game</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value">3 h</span>
+        <span class="stat-label">Video&ndash;action data to adapt the simulator to a second game</span>
+      </div>
+    </section>
+
+    <section id="abstract" class="section">
+      <h2>Abstract</h2>
+      <p>
+        Game agents trained by supervised imitation on video&ndash;action data drift
+        into states that demonstrations rarely cover, where small errors compound
+        into task failure. Reinforcement learning (RL) can provide the missing
+        experience of acting, failing, and recovering, but closed-source commercial
+        games lack the fast dynamics, programmatic resets, and reward signals that
+        RL requires. We present <strong>SHUGYO</strong>, a framework that adapts a
+        pretrained video diffusion model into a learned environment for on-policy
+        RL in the AAA action game <em>Black Myth: Wukong</em>. The simulator
+        predicts future frames from rendered observations and native
+        keyboard-and-mouse controls, resets rollouts from specified starting
+        frames, and generates each chunk in 4 denoising steps. A rubric-guided
+        vision&ndash;language judge scores the resulting rollouts, providing rewards
+        without access to internal game state. Starting from a supervised
+        vision&ndash;language agent, we perform RL post-training with GRPO and a
+        two-stage curriculum entirely within the simulator. Per-task success rates
+        in the simulator correlate with those in the real game (Pearson
+        <i>r</i>&nbsp;=&nbsp;0.88), and RL post-training in the simulator raises
+        real-game success from 58.6% to 68.6%.
+      </p>
+    </section>
+
+    <section id="overview" class="section">
+      <h2>Overview</h2>
+      <figure class="teaser">
+        <img src="assets/figures/overview.png"
+             alt="Overview of SHUGYO. (a) Real game engine versus learned world simulator. (b) Iterative simulator-policy improvement." />
+      </figure>
+      <p>
+        <strong>(a)</strong> The commercial game offers authentic dynamics but costly
+        rollouts and limited reset and reward access. SHUGYO replaces it with a
+        learned world simulator that exposes the same visual-observation and
+        native-action interface, so a policy mapping pixels to keyboard-and-mouse
+        actions can interact with either environment unchanged, while the simulator
+        additionally supports resettable rollouts and parallel sampling.
+        <strong>(b)</strong> Offline gameplay collected in the real game trains the
+        world simulator, which then serves as the RL environment. The policy
+        interacts with the simulator through imagined rollouts, a rubric-guided VLM
+        judge scores these rollouts, and the resulting rewards drive the policy
+        update.
+      </p>
+    </section>
+
+    <section id="results" class="section">
+      <h2>Results</h2>
+      <p class="lead">
+        We evaluate three questions in order: whether RL inside the simulator
+        improves the agent in the real game, whether success in the simulator
+        tracks success in the real game, and whether the simulator follows native
+        controls. The world simulator is trained on about 190 hours of
+        <em>Black Myth: Wukong</em> gameplay with synchronized keyboard and mouse
+        actions.
+      </p>
+
+      <!-- 1. Policy improvement -->
+      <div class="subsection" id="rl-results">
+        <h3 class="block-title">Real-game improvement from simulator RL</h3>
+        <p class="callout">
+          WukongAgent-SFT is post-trained with GRPO entirely inside the simulator,
+          then deployed in the real game without modification. Both policies are
+          evaluated on 14 held-out instruction-following tasks, 10 trials each.
+        </p>
+        <div class="table-card">
+          <div class="table-card-header">
+            <h3>Real-game success rate (%) by task category</h3>
+            <p>The number of tasks per category is given in parentheses. Higher is better for every column.</p>
+          </div>
+          <div class="table-scroll">
+            <table class="results">
+              <thead>
+                <tr>
+                  <th>Policy</th>
+                  <th>Cont. nav. (3)</th>
+                  <th>Entity nav. (4)</th>
+                  <th>Traversal (1)</th>
+                  <th>Compound (6)</th>
+                  <th>Overall (14)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="method-name">WukongAgent-SFT</td>
+                  <td>83.3</td>
+                  <td>52.5</td>
+                  <td>90.0</td>
+                  <td>45.0</td>
+                  <td>58.6</td>
+                </tr>
+                <tr class="highlight-row">
+                  <td class="method-name">WukongAgent-RL</td>
+                  <td class="best">100.0</td>
+                  <td class="best">62.5</td>
+                  <td class="best">100.0</td>
+                  <td class="best">51.7</td>
+                  <td class="best">68.6</td>
+                </tr>
+                <tr class="delta-row">
+                  <td class="method-name">&Delta; (pp)</td>
+                  <td>+16.7</td>
+                  <td>+10.0</td>
+                  <td>+10.0</td>
+                  <td>+6.7</td>
+                  <td>+10.0</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="table-legend"><span class="best">Bold</span> = best</p>
+        </div>
+        <figure class="figure-block">
+          <img src="assets/figures/rl_improvement.png"
+               alt="Per-task real-game success rates of WukongAgent-SFT and WukongAgent-RL, with category-level means." />
+          <figcaption>
+            Per-task real-game success (left) and category means with absolute gains
+            (right). Success rises on 8 of 14 tasks, stays the same on 3, and drops
+            on 3. The largest gains are on approaching the shrine ahead (T4, 40%
+            &rarr; 90%) and crossing muddy ground toward the temple (T14, 20%
+            &rarr; 70%). With 10 trials per task, per-task differences should be
+            read with caution.
+          </figcaption>
+        </figure>
+        <p class="note">
+          The same pipeline applied to <em>Honor of Kings: World</em> raises
+          real-game success from 52% to 74% on 10 entity-directed tasks.
+        </p>
+      </div>
+
+      <!-- 2. Sim-real agreement -->
+      <div class="subsection" id="sim-real">
+        <h3 class="block-title">Simulator success tracks real-game success</h3>
+        <p class="callout">
+          The same WukongAgent-SFT policy is run in the real game and in the
+          simulator from identical initial observations. In both environments, the
+          same rubric-guided judge scores each rollout video.
+        </p>
+        <div class="result-split">
+          <div class="table-card">
+            <div class="table-card-header">
+              <h3>Per-task agreement over 14 tasks</h3>
+              <p>Correlations are computed over per-task success rates. Deviation is the mean absolute difference between the two environments.</p>
+            </div>
+            <div class="table-scroll">
+              <table class="results">
+                <thead>
+                  <tr>
+                    <th>Task subset</th>
+                    <th>Pearson <i>r</i> &uarr;</th>
+                    <th>Deviation &darr;</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="method-name">Non-compound (i&ndash;iii)</td>
+                    <td class="best">0.92</td>
+                    <td class="best">20.0%</td>
+                  </tr>
+                  <tr>
+                    <td class="method-name">Compound (iv)</td>
+                    <td>0.82</td>
+                    <td>25.0%</td>
+                  </tr>
+                  <tr class="highlight-row">
+                    <td class="method-name">All 14 tasks</td>
+                    <td>0.88</td>
+                    <td>22%</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="table-legend">All tasks: Spearman &rho; = 0.90</p>
+          </div>
+          <div class="split-text">
+            <p>
+              The simulator preserves the <strong>relative difficulty</strong> of
+              tasks. It is, however, systematically more pessimistic: it yields a
+              lower success rate on 12 of the 14 tasks.
+            </p>
+            <p>
+              Agreement is tighter on atomic skills than on compound tasks, likely
+              because errors accumulate over longer, multi-stage rollouts. This
+              motivates a curriculum that consolidates atomic skills first.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Simulator fidelity -->
+      <div class="subsection" id="fidelity">
+        <h3 class="block-title">World simulator fidelity</h3>
+        <p class="callout">
+          A held-out benchmark of 50 initial-frame / action-trajectory pairs. Each
+          example gives one initial frame and a 48-step native action trajectory;
+          ground-truth future frames are used only for evaluation.
+        </p>
+        <div class="table-card">
+          <div class="table-card-header">
+            <h3><em>Black Myth: Wukong</em>, comparison and ablation</h3>
+            <p>FDS: cosine similarity between predicted and ground-truth optical flow. EPE: flow end-point error. CFD: counterfactual distance between predictions from the same frame under different actions (action sensitivity). Dyn_Deg: spatial extent of motion. Mot_Smooth: temporal regularity of flow.</p>
+          </div>
+          <div class="table-scroll">
+            <table class="results">
+              <thead>
+                <tr>
+                  <th>Model</th>
+                  <th>FDS &uarr;</th>
+                  <th>EPE &darr;</th>
+                  <th>CFD &uarr;</th>
+                  <th>Dyn_Deg &uarr;</th>
+                  <th>Mot_Smooth &uarr;</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="method-name">SolarWM (Wan2.2-5B)</td>
+                  <td>0.588</td>
+                  <td>10.44</td>
+                  <td>0.12</td>
+                  <td class="best">0.88</td>
+                  <td>0.15</td>
+                </tr>
+                <tr>
+                  <td class="method-name">Matrix-Game 3.0</td>
+                  <td class="second">0.638</td>
+                  <td class="best">8.42</td>
+                  <td class="second">0.18</td>
+                  <td>0.70</td>
+                  <td class="best">0.16</td>
+                </tr>
+                <tr class="highlight-row">
+                  <td class="method-name">SHUGYO</td>
+                  <td class="best">0.660</td>
+                  <td class="second">9.52</td>
+                  <td class="best">0.20</td>
+                  <td class="second">0.79</td>
+                  <td class="best">0.16</td>
+                </tr>
+                <tr class="band"><td colspan="6">Ablations</td></tr>
+                <tr class="ablation">
+                  <td class="method-name">w/o sink latent</td>
+                  <td>0.638</td>
+                  <td>9.90</td>
+                  <td>0.20</td>
+                  <td>0.78</td>
+                  <td>0.13</td>
+                </tr>
+                <tr class="ablation">
+                  <td class="method-name">w/o decoupled fusion</td>
+                  <td>0.629</td>
+                  <td>10.06</td>
+                  <td>0.13</td>
+                  <td>0.72</td>
+                  <td>0.12</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="table-legend"><span class="best">Bold</span> = best &nbsp;|&nbsp; <span class="second">Underline</span> = second best &nbsp;|&nbsp; ranked among the three compared models</p>
+        </div>
+        <p class="note">
+          SHUGYO is best on FDS and CFD: its motion direction agrees best with the
+          ground truth, and it responds most to changes in the action trajectory.
+          Its EPE is lower than SolarWM but higher than Matrix-Game 3.0, so motion
+          magnitude is predicted less accurately than direction. Removing the
+          decoupled key/mouse fusion causes the largest drop in CFD (0.20 &rarr;
+          0.13).
+        </p>
+      </div>
+
+      <!-- 4. Cross-game transfer -->
+      <div class="subsection" id="transfer">
+        <h3 class="block-title">Cross-game transfer with 3 hours of data</h3>
+        <p class="callout">
+          The simulator is adapted to <em>Honor of Kings: World</em> (NGR) with 3
+          hours of video&ndash;action data, about 1/60 of the
+          <em>Black Myth: Wukong</em> training budget, and evaluated on 40 examples
+          under the same protocol.
+        </p>
+        <div class="table-card">
+          <div class="table-card-header">
+            <h3>Transfer to <em>Honor of Kings: World</em></h3>
+            <p>Top: zero-shot inference without NGR data. Bottom: training on the 3-hour NGR data. &dagger; Reported in clips, as the total duration is not disclosed.</p>
+          </div>
+          <div class="table-scroll">
+            <table class="results">
+              <thead>
+                <tr>
+                  <th>Model</th>
+                  <th>Pre-training</th>
+                  <th>NGR data</th>
+                  <th>FDS &uarr;</th>
+                  <th>EPE &darr;</th>
+                  <th>CFD &uarr;</th>
+                  <th>Dyn_Deg &uarr;</th>
+                  <th>Mot_Smooth &uarr;</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="band"><td colspan="8">Zero-shot</td></tr>
+                <tr>
+                  <td class="method-name">Matrix-Game 3.0</td>
+                  <td>4.8M clips&dagger;</td>
+                  <td class="muted">&mdash;</td>
+                  <td class="second">0.532</td>
+                  <td>11.34</td>
+                  <td>0.12</td>
+                  <td class="second">0.75</td>
+                  <td>0.19</td>
+                </tr>
+                <tr>
+                  <td class="method-name">SHUGYO</td>
+                  <td>190 h (Wukong)</td>
+                  <td class="muted">&mdash;</td>
+                  <td>0.497</td>
+                  <td class="second">10.21</td>
+                  <td class="second">0.13</td>
+                  <td>0.74</td>
+                  <td>0.19</td>
+                </tr>
+                <tr class="band"><td colspan="8">Trained on NGR</td></tr>
+                <tr>
+                  <td class="method-name">SHUGYO</td>
+                  <td class="muted">&mdash;</td>
+                  <td>3 h</td>
+                  <td>0.439</td>
+                  <td>10.50</td>
+                  <td>0.03</td>
+                  <td>0.72</td>
+                  <td class="best">0.22</td>
+                </tr>
+                <tr class="highlight-row">
+                  <td class="method-name">SHUGYO</td>
+                  <td>190 h (Wukong)</td>
+                  <td>3 h</td>
+                  <td class="best">0.659</td>
+                  <td class="best">7.50</td>
+                  <td class="best">0.16</td>
+                  <td class="best">0.77</td>
+                  <td class="second">0.20</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="table-legend"><span class="best">Bold</span> = best &nbsp;|&nbsp; <span class="second">Underline</span> = second best</p>
+        </div>
+        <p class="note">
+          Training on the 3-hour NGR data alone gives a near-zero CFD (0.03), so its
+          higher Mot_Smooth does not reflect better dynamics. Starting from the
+          Wukong checkpoint raises FDS from 0.439 to 0.659 and CFD from 0.03 to
+          0.16, which suggests that much of the native-control grounding transfers
+          across titles.
+        </p>
+      </div>
+    </section>
+
+    <section id="cases" class="section">
+      <h2>Simulator Rollouts: Success and Failure</h2>
+      <p>
+        All videos below are generated by the SHUGYO world simulator in closed loop
+        with the agent, without querying the real game. For each task, the two
+        rollouts start from the same initial observation, and different sampled
+        control chunks lead to a successful and a failed trajectory. Such
+        within-group outcome differences provide the learning signal for
+        group-relative policy optimization.
+      </p>
+
+      <article class="case">
+        <div class="case-head">
+          <h3>Task 8</h3>
+          <p class="instruction">&ldquo;Pass through the stone gate ahead on the right.&rdquo;</p>
+          <button class="sync" type="button" data-group="task08">Play both</button>
+        </div>
+        <div class="pair">
+          <figure>
+            <video data-group="task08" controls muted loop playsinline preload="metadata"
+                   poster="assets/posters/task08_success.jpg">
+              <source src="assets/videos/task08_success.mp4" type="video/mp4" />
+            </video>
+            <figcaption><span class="tag ok">Success</span>
+              The agent turns toward the stone gate on the right and passes through it.
+            </figcaption>
+          </figure>
+          <figure>
+            <video data-group="task08" controls muted loop playsinline preload="metadata"
+                   poster="assets/posters/task08_fail.jpg">
+              <source src="assets/videos/task08_fail.mp4" type="video/mp4" />
+            </video>
+            <figcaption><span class="tag fail">Failure</span>
+              The agent deviates from the gate and does not pass through it.
+            </figcaption>
+          </figure>
+        </div>
+      </article>
+
+      <article class="case">
+        <div class="case-head">
+          <h3>Task 11</h3>
+          <p class="instruction">&ldquo;Pass through the pavilion ahead.&rdquo;</p>
+          <button class="sync" type="button" data-group="task11">Play both</button>
+        </div>
+        <div class="pair">
+          <figure>
+            <video data-group="task11" controls muted loop playsinline preload="metadata"
+                   poster="assets/posters/task11_success.jpg">
+              <source src="assets/videos/task11_success.mp4" type="video/mp4" />
+            </video>
+            <figcaption><span class="tag ok">Success</span>
+              The agent walks straight through the pavilion.
+            </figcaption>
+          </figure>
+          <figure>
+            <video data-group="task11" controls muted loop playsinline preload="metadata"
+                   poster="assets/posters/task11_fail.jpg">
+              <source src="assets/videos/task11_fail.mp4" type="video/mp4" />
+            </video>
+            <figcaption><span class="tag fail">Failure</span>
+              The agent veers right and leaves the pavilion without passing through it.
+            </figcaption>
+          </figure>
+        </div>
+      </article>
+    </section>
+
+    <section id="bibtex" class="section">
+      <h2>BibTeX</h2>
+      <div class="code-wrap">
+        <button class="copy" type="button">Copy</button>
+        <pre><code id="bibtex-code">@misc{han2026shugyo,
+  title  = {{SHUGYO}: On-Policy Reinforcement Learning of Game Agents in a Generative World Model},
+  author = {WenKang Han and Hongqiao Lian and Zipeng Yang and Danyang Chen and Zixing Guo and Shaoguo Wen and Wen Gao and Junle Wang},
+  year   = {2026},
+  note   = {Manuscript}
+}</code></pre>
+      </div>
+    </section>
+
+    <footer class="footer">
+      &copy; 2026 Tencent Turing Lab &nbsp;|&nbsp; Released under the <a href="LICENSE">MIT License</a>
+    </footer>
+  </main>
+
+  <script>
+    document.querySelectorAll("button.sync").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var vids = document.querySelectorAll('video[data-group="' + btn.dataset.group + '"]');
+        var playing = btn.dataset.state === "playing";
+        vids.forEach(function (v) {
+          if (playing) { v.pause(); } else { v.currentTime = 0; v.play(); }
+        });
+        btn.dataset.state = playing ? "" : "playing";
+        btn.textContent = playing ? "Play both" : "Pause both";
+      });
+    });
+
+    var copyBtn = document.querySelector("button.copy");
+    copyBtn.addEventListener("click", function () {
+      var text = document.getElementById("bibtex-code").textContent;
+      navigator.clipboard.writeText(text).then(function () {
+        copyBtn.textContent = "Copied";
+        setTimeout(function () { copyBtn.textContent = "Copy"; }, 1500);
+      });
+    });
+  </script>
+</body>
+</html>
